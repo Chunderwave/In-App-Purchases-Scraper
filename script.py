@@ -76,7 +76,8 @@ def writeResults(iap_data, url,writer):
         entry = {"app_name": iap_data[0],
             "app_url": url,
             "iap_data":json.dumps([{"name": n, "price": p} for n, p in iap_data[1]])}
-        writer.writerow(entry) 
+        writer.writerow(entry)
+        print("An entry is added")
     
 def Sleep():
     sleepTime = random.uniform(2,5)
@@ -111,13 +112,6 @@ session.headers.update(headers)
 # response = session.get("https://apps.apple.com/me/app/google-translate/id414706506")
 # if response.status_code == 200:
 #     soup = BeautifulSoup(response.text,'lxml')
-        # lan_tags = soup.find_all(string="Languages")
-        # for result in lan_tags:
-        #     if result.parent.name == 'dt':
-        #         tag = result.parent
-        #         parent = tag.find_parent()
-        #         languages = parent.find('p').text
-                # if languages.
 
 
 with open('InAppPurchases.csv', mode = 'a', newline='', encoding='utf-8') as f:
@@ -127,5 +121,6 @@ with open('InAppPurchases.csv', mode = 'a', newline='', encoding='utf-8') as f:
         iap_data = scrape_in_app_purchases(session, url)
         writeResults(iap_data,url,writer)
         Sleep()
+
 
 print("Saved to InAppPurchases.csv ✅")
