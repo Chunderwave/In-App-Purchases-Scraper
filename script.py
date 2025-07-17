@@ -58,7 +58,7 @@ def scrape_in_app_purchases(session, url, job_id):
 
         # Search for plan name (may not exist)
         if iap_headers: 
-            for tags in iap_headers:
+            for tags in iap_headers: #if more than 1, there could be IAP plans
                 if tags.parent.name == "span":
                     parent = tags.parent
                     block_tag = parent.find_parent()
@@ -68,12 +68,17 @@ def scrape_in_app_purchases(session, url, job_id):
                     if len(spans) >= 2:
                         name_span = spans[0]  # or sometimes more robust to do: pick the span that is not the price span
                         results.append((name_span.text.strip(), tags.strip()))
-                    return (appName,results)
+            
+        if len(results) != 0:
+            return (appName,results)
             # each purchase price is stored as tuple in an array called results
+        else:
             print("This app does not have In-App Purchases.")
+            return None
 
     else:
         print("Failed to retrieve the page:", response.status_code)
+        return None
 
 def writeResults(iap_data, url,writer,i):
     if iap_data is not None:
@@ -90,19 +95,20 @@ def Sleep():
     # print(f"Sleeping for {sleepTime} seconds.")
     time.sleep(sleepTime)
 
-def TestLinks():
-    hasIAP = "https://apps.apple.com/us/app/fantastical-calendar/id718043190"
-    notHasIAP = "https://apps.apple.com/me/app/google-translate/id414706506"
-    notEnglish = "https://apps.apple.com/us/app/%E5%A4%A7%E7%B9%81%E7%9B%9B-%E3%81%BE%E3%82%93%E3%81%B7%E3%81%8F%E3%83%9E%E3%83%AB%E3%82%B7%E3%82%A73/id1301811479"
-    return [hasIAP,notHasIAP,notEnglish]
+def LoadTest(file_path, count=None):
+    df = pd.read_csv(file_path, index_col=0,header =0)
+    if count != None:
+        if type(count) == int:
+            df = df.head(count)
+        else:
+            raise TypeError('The second argument for LoadTest should be int type')
+    return df
 
-def loadLargerTest():
-    df = pd.read_csv('urls.csv', index_col=0,header = 0)
-    urls_series = df['url'].head(50)
+def script(input_path, output_path='InAppPurchases.csv'):
 
-    return urls_series.tolist()
-
-def script():
+    if type(input_path) != str | type(output_path) != str:
+        raise TypeError('Please input file path as a str')
+    
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -114,19 +120,15 @@ def script():
     session = requests.Session()
     session.headers.update(headers)
 
-    app_urls=loadLargerTest()
+    job_df = LoadTest(input_path)
+    app_urls = job_df['url'].tolist()
 
-    job_df = pd.read_csv("urls.csv",header =0)
-    try:
-        job_done_sr = job_df['done']
-    except KeyError:
-        job_df['done'] = None
+    job_df['status']=job_df.get('status') #if status col doesn't exist, a column of None type is returned
+    job_done_sr = job_df['status']
 
-
-    job_done_sr = job_df['done']
     startFrom = job_done_sr.size - job_done_sr.isnull().sum()
     if startFrom == 0:
-        with open('InAppPurchases.csv', mode='w',newline = '', encoding='utf-8') as f:
+        with open(output_path, mode='w',newline = '', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=['Job_ID', 'App Name','App URL','IAP Data'])
             writer.writeheader()
     elif startFrom < 0:
@@ -144,18 +146,18 @@ def script():
                 url = app_urls[i]
                 iap_data = scrape_in_app_purchases(session, url, i)
 
-                with open('InAppPurchases.csv', mode = 'a', newline='', encoding='utf-8') as f:
+                with open(output_path, mode = 'a', newline='', encoding='utf-8') as f:
                     appender = csv.DictWriter(f, fieldnames=['Job_ID', 'App Name','App URL','IAP Data'])
                     writeResults(iap_data,url,appender,i)
 
                 job_done_sr.at[i]='done'
                 if i%10 == 9:
-                    pd.DataFrame.to_csv(job_df,'urls.csv',header=True)
+                    pd.DataFrame.to_csv(job_df,input_path,header=True)
 
                 Sleep()
             
-    pd.DataFrame.to_csv(job_df,'urls.csv',header=True)
+    pd.DataFrame.to_csv(job_df,input_path,header=True)
     print("All jobs are completed.")
     return 1
     
-script()
+script('test_urls.csv')

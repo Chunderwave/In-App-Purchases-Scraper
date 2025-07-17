@@ -1,9 +1,13 @@
 # In-App-Purchases-Scraper
-This script scrapes apps on Apple AppStore using the list of urls provided in urls.csv.
-It scrapes only apps supporting English. If an app has In-App Purchases data, its information will be stored at its own row in the InAppPurchases.csv.
+This script scrapes apps on Apple AppStore. You may provide a list of urls stored in csv file and input the file path to script function in script.py.
+It scrapes only apps supporting English. If an app has In-App Purchases data, its information will be stored at its own row in the output file.
 
-InAppPurchases.csv contains app name, app url, and the In-App Purchases data.
+The urls must be under a column named ***'url'*** in the input file. 
 
+The default output file path is "InAppPurchases.csv" contains 'Job_ID', 'App Name','App URL','IAP Data' columns. You can also modify the file by type a 2nd argument in script().
+
+
+**Setting up environment to run the scraper***
 Create your virtual environment with:
 python -m venv venv
 (venv is the name of your virtual environment, you can modify the last argument to make your own name)
