@@ -20,13 +20,14 @@ information from the website and store it in an array.
 mechanism: it searches for "$" string in the website, determine
 if the returned tag contains desired info (based on whether the tag is <span>)
 '''
-def scrape_in_app_purchases(session, url):
+
+def scrape_in_app_purchases(session, url, job_id):
     response = session.get(url)
 
     # Check the status code
     if response.status_code == 200:
         soup = BeautifulSoup(response.text, 'lxml')
-        print("Requests made successfully.")
+        print(f'This is Job {job_id} running.')
 
         #filter for English apps?
         lan_tags = soup.find_all(string="Languages")
@@ -34,10 +35,13 @@ def scrape_in_app_purchases(session, url):
             if result.parent.name == 'dt':
                 tag = result.parent
                 parent = tag.find_parent()
-                languages = parent.find('p').text
-                if "English" not in languages:
-                    print("This app does not support English.")
-                    return None
+                try: 
+                    languages = parent.find('p').text
+                    if "English" not in languages:
+                        print("This app does not support English.")
+                        return None
+                except:
+                    print("Not have language information")
 
         h1 = soup.find('h1')
         if h1 == None:
@@ -71,56 +75,87 @@ def scrape_in_app_purchases(session, url):
     else:
         print("Failed to retrieve the page:", response.status_code)
 
-def writeResults(iap_data, url,writer):
+def writeResults(iap_data, url,writer,i):
     if iap_data is not None:
-        entry = {"app_name": iap_data[0],
-            "app_url": url,
-            "iap_data":json.dumps([{"name": n, "price": p} for n, p in iap_data[1]])}
+        entry = {
+            "Job_ID": i,
+            "App Name": iap_data[0],
+            "App URL": url,
+            "IAP Data":json.dumps([{"name": n, "price": p} for n, p in iap_data[1]])}
         writer.writerow(entry)
         print("An entry is added")
     
 def Sleep():
     sleepTime = random.uniform(2,5)
-    print(f"Sleeping for {sleepTime} seconds.")
+    # print(f"Sleeping for {sleepTime} seconds.")
     time.sleep(sleepTime)
 
-def TeskLinks():
+def TestLinks():
     hasIAP = "https://apps.apple.com/us/app/fantastical-calendar/id718043190"
     notHasIAP = "https://apps.apple.com/me/app/google-translate/id414706506"
     notEnglish = "https://apps.apple.com/us/app/%E5%A4%A7%E7%B9%81%E7%9B%9B-%E3%81%BE%E3%82%93%E3%81%B7%E3%81%8F%E3%83%9E%E3%83%AB%E3%82%B7%E3%82%A73/id1301811479"
     return [hasIAP,notHasIAP,notEnglish]
 
 def loadLargerTest():
-    df = pd.read_csv('urls.csv', index_col=0)
+    df = pd.read_csv('urls.csv', index_col=0,header = 0)
     urls_series = df['url'].head(50)
 
     return urls_series.tolist()
 
-app_urls=TeskLinks()
+def script():
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/122.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9"
+    }
+    session = requests.Session()
+    session.headers.update(headers)
 
-headers = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9"
-}
-session = requests.Session()
-session.headers.update(headers)
+    app_urls=loadLargerTest()
 
-# response = session.get("https://apps.apple.com/me/app/google-translate/id414706506")
-# if response.status_code == 200:
-#     soup = BeautifulSoup(response.text,'lxml')
-
-
-with open('InAppPurchases.csv', mode = 'a', newline='', encoding='utf-8') as f:
-    writer = csv.DictWriter(f, fieldnames=['app_name','app_url', 'iap_data'])
-
-    for url in app_urls:
-        iap_data = scrape_in_app_purchases(session, url)
-        writeResults(iap_data,url,writer)
-        Sleep()
+    job_df = pd.read_csv("urls.csv",header =0)
+    try:
+        job_done_sr = job_df['done']
+    except KeyError:
+        job_df['done'] = None
 
 
-print("Saved to InAppPurchases.csv ✅")
+    job_done_sr = job_df['done']
+    startFrom = job_done_sr.size - job_done_sr.isnull().sum()
+    if startFrom == 0:
+        with open('InAppPurchases.csv', mode='w',newline = '', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=['Job_ID', 'App Name','App URL','IAP Data'])
+            writer.writeheader()
+    elif startFrom < 0:
+        print("startFrom is negative.")
+        return -1
+    
+
+    totalJobs = len(app_urls) # total number of jobs
+    print(startFrom)
+    print(totalJobs)
+    if startFrom < totalJobs:
+        for i in range(startFrom, totalJobs):
+                # so iteration begins from startFrom and ends at totalJobs - 1 (which 
+                # is the last job's index)
+                url = app_urls[i]
+                iap_data = scrape_in_app_purchases(session, url, i)
+
+                with open('InAppPurchases.csv', mode = 'a', newline='', encoding='utf-8') as f:
+                    appender = csv.DictWriter(f, fieldnames=['Job_ID', 'App Name','App URL','IAP Data'])
+                    writeResults(iap_data,url,appender,i)
+
+                job_done_sr.at[i]='done'
+                if i%10 == 9:
+                    pd.DataFrame.to_csv(job_df,'urls.csv',header=True)
+
+                Sleep()
+            
+    pd.DataFrame.to_csv(job_df,'urls.csv',header=True)
+    print("All jobs are completed.")
+    return 1
+    
+script()
